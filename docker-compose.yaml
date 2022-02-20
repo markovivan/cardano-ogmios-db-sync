@@ -1,38 +1,39 @@
-version: "3.8"
+version: "3.5"
 
 services:
-  cardano-postgres:
-    container_name: cardano-postgres
+  postgres:
+    container_name: cardano-db-postgres
     image: postgres:${POSTGRES_VERSION:-11.5-alpine}
     environment:
       - POSTGRES_LOGGING=true
       - POSTGRES_DB_FILE=/run/secrets/postgres_db
       - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
       - POSTGRES_USER_FILE=/run/secrets/postgres_user
-    ports:
-      - ${POSTGRES_PORT:-5432}:5432
     secrets:
-      - postgres_db
       - postgres_password
       - postgres_user
-    shm_size: '2gb'
+      - postgres_db
+    ports:
+      - ${POSTGRES_PORT:-5432}:5432
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./postgres-backup:/var/lib/postgresql/backup
     restart: on-failure
     logging:
       driver: "json-file"
       options:
         max-size: "200k"
-        max-file: "10"   
+        max-file: "10"
   
   cardano-node:
     container_name: cardano-node
-    image: inputoutput/cardano-node:${CARDANO_NODE_VERSION:-1.33.0}
+    image: inputoutput/cardano-node:${CARDANO_NODE:-1.33.0}
     environment:
       - NETWORK=${NETWORK:-mainnet}
     volumes:
       - node-db:/data
       - node-ipc:/ipc
+      - ./configuration/network/${NETWORK:-mainnet}:/config
     restart: on-failure
     logging:
       driver: "json-file"
@@ -49,6 +50,8 @@ services:
       "--node-socket", "/ipc/node.socket",
       "--node-config", "/config/cardano-node/config.json"
     ]
+    depends_on:
+      - cardano-node
     volumes:
       - ./configuration/network/${NETWORK:-mainnet}:/config
       - node-ipc:/ipc
@@ -57,12 +60,9 @@ services:
   
   cardano-db-sync-extended:
     container_name: cardano-db-sync-extended
-    image: inputoutput/cardano-db-sync:${CARDANO_DB_SYNC_VERSION:-12.0.0}
-    command: [
-      "--config", "/config/cardano-db-sync/config.json",
-      "--socket-path", "/ipc/node.socket",
-    ]
+    image: inputoutput/cardano-db-sync:${CARDANO_DB_SYNC_VERSION:-12.0.2}
     environment:
+      - NETWORK=${NETWORK:-mainnet}
       - EXTENDED=true
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
@@ -75,15 +75,15 @@ services:
       - postgres_user
       - postgres_db
     volumes:
-      - ./configuration/network/${NETWORK:-mainnet}:/config
-      - node-ipc:/ipc
       - db-sync-data:/var/lib/cdbsync
+      - node-ipc:/node-ipc
     restart: on-failure
     logging:
       driver: "json-file"
       options:
         max-size: "200k"
         max-file: "10"
+
 secrets:
   postgres_db:
     file: ./configuration/secrets/postgres_db
