@@ -83,6 +83,58 @@ services:
       options:
         max-size: "200k"
         max-file: "10"
+    
+  hasura:
+    container_name: hasura
+    build:
+      context: ./cardano-graphql/packages/api-cardano-db-hasura/hasura
+    image: inputoutput/cardano-graphql-hasura:${CARDANO_GRAPHQL_VERSION:-6.2.0}
+    ports:
+      - ${HASURA_PORT:-8090}:8080
+    depends_on:
+      - postgres
+    restart: on-failure
+    environment:
+      - HASURA_GRAPHQL_ENABLE_CONSOLE=true
+      - HASURA_GRAPHQL_CORS_DOMAIN=http://localhost:9695
+    secrets:
+      - postgres_db
+      - postgres_password
+      - postgres_user
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  cardano-graphql:
+    container_name: cardano-graphql
+    build:
+      args:
+        - NETWORK=${NETWORK:-mainnet}
+        - METADATA_SERVER_URI=${METADATA_SERVER_URI:-https://tokens.cardano.org}
+      cache_from: [ inputoutput/cardano-graphql:latest ]
+      context: ./cardano-graphql/
+      target: server
+    image: inputoutput/cardano-graphql:${CARDANO_GRAPHQL_VERSION:-6.2.0}-${NETWORK:-mainnet}
+    environment:
+      - ALLOW_INTROSPECTION=true
+      - CACHE_ENABLED=true
+      - LOGGER_MIN_SEVERITY=${LOGGER_MIN_SEVERITY:-info}
+    expose:
+      - ${API_PORT:-3100}
+    ports:
+      - ${API_PORT:-3100}:3100
+    restart: on-failure
+    secrets:
+      - postgres_db
+      - postgres_password
+      - postgres_user
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
 
 secrets:
   postgres_db:
