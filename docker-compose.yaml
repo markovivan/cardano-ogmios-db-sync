@@ -13,9 +13,12 @@ services:
       - postgres_password
       - postgres_user
       - postgres_db
+    shm_size: '8gb'
     ports:
       - ${POSTGRES_PORT:-5432}:5432
+    command: postgres -c config_file=/etc/configuration/postgres/postgresql.conf
     volumes:
+      - ./configuration/postgres/postgresql.conf:/etc/configuration/postgres/postgresql.conf
       - postgres-data:/var/lib/postgresql/data
       - ./postgres-backup:/var/lib/postgresql/backup
     restart: on-failure
@@ -27,13 +30,13 @@ services:
   
   cardano-node:
     container_name: cardano-node
-    image: inputoutput/cardano-node:${CARDANO_NODE:-1.33.0}
+    image: inputoutput/cardano-node:${CARDANO_NODE:-1.35.0}
     environment:
       - NETWORK=${NETWORK:-mainnet}
     volumes:
       - node-db:/data
       - node-ipc:/ipc
-      - ./configuration/network/${NETWORK:-mainnet}:/config
+      - ./cardano-configuration/network/${NETWORK:-mainnet}:/config
     restart: on-failure
     logging:
       driver: "json-file"
@@ -53,14 +56,21 @@ services:
     depends_on:
       - cardano-node
     volumes:
-      - ./configuration/network/${NETWORK:-mainnet}:/config
+      - ./cardano-configuration/network/${NETWORK:-mainnet}:/config
+      - ./cardano-configuration/network/${NETWORK:-mainnet}/genesis/alonzo.json:/config/cardano-node/mainnet-alonzo-genesis.json
+      - ./cardano-configuration/network/${NETWORK:-mainnet}/genesis/byron.json:/config/cardano-node/mainnet-byron-genesis.json
+      - ./cardano-configuration/network/${NETWORK:-mainnet}/genesis/shelley.json:/config/cardano-node/mainnet-shelley-genesis.json
       - node-ipc:/ipc
     ports:
       - ${OGMIOS_PORT:-1337}:1337
   
   cardano-db-sync-extended:
     container_name: cardano-db-sync-extended
-    image: inputoutput/cardano-db-sync:${CARDANO_DB_SYNC_VERSION:-12.0.2}
+    image: inputoutput/cardano-db-sync:${CARDANO_DB_SYNC_VERSION:-13.0.0}
+    command: [
+      "--config", "/config/cardano-db-sync/config.json",
+      "--socket-path", "/node-ipc/node.socket"
+    ]
     environment:
       - NETWORK=${NETWORK:-mainnet}
       - EXTENDED=true
@@ -69,13 +79,14 @@ services:
       - RESTORE_SNAPSHOT=${RESTORE_SNAPSHOT:-}
       - RESTORE_RECREATE_DB=N
     depends_on:
+      - cardano-node
       - postgres
     secrets:
       - postgres_password
       - postgres_user
       - postgres_db
     volumes:
-      - db-sync-data:/var/lib/cdbsync
+      - db-sync-data:/var/lib/cexplorer
       - node-ipc:/node-ipc
     restart: on-failure
     logging:
@@ -83,7 +94,6 @@ services:
       options:
         max-size: "200k"
         max-file: "10"
-    
   hasura:
     container_name: hasura
     build:
@@ -92,7 +102,7 @@ services:
     ports:
       - ${HASURA_PORT:-8090}:8080
     depends_on:
-      - postgres
+      - "postgres"
     restart: on-failure
     environment:
       - HASURA_GRAPHQL_ENABLE_CONSOLE=true

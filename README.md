@@ -14,6 +14,7 @@ cardano-ogmios-db-sync
 
 https://github.com/input-output-hk/cardano-db-sync/issues/975
 
+````
 /* From https://www.cybertec-postgresql.com/en/index-your-foreign-key/ */
 SELECT c.conrelid::regclass AS "table",
        /* list of key column names in order */
@@ -45,3 +46,4 @@ WHERE NOT EXISTS
   AND c.contype = 'f'
 GROUP BY c.conrelid, c.conname, c.confrelid, a.attname
 ORDER BY pg_catalog.pg_relation_size(c.conrelid) DESC;
+````
