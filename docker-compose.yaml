@@ -13,10 +13,12 @@ services:
       - postgres_password
       - postgres_user
       - postgres_db
-    shm_size: '4gb'
+    shm_size: '8gb'
     ports:
       - ${POSTGRES_PORT:-5432}:5432
+    command: postgres -c config_file=/etc/configuration/postgres/postgresql.conf
     volumes:
+      - ./configuration/postgres/postgresql.conf:/etc/configuration/postgres/postgresql.conf
       - postgres-data:/var/lib/postgresql/data
       - ./postgres-backup:/var/lib/postgresql/backup
     restart: on-failure
